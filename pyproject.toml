@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claw-aie"
+version = "0.1.0"
+description = "AIE-compatible agent harness with PreToolUse/PostToolUse hooks"
+requires-python = ">=3.11"
+dependencies = [
+    "aiohttp>=3.9.0",
+    "httpx>=0.26.0",
+    "pyyaml>=6.0",
+    "jsonschema>=4.21.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio",
+]
+
+[project.scripts]
+claw-aie = "aie_integration.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aie_integration", "aie_integration.hooks"]
+
+[tool.setuptools.package-dir]
+"" = "."

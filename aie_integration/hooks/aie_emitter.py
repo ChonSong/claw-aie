@@ -1,9 +1,11 @@
 # aie_emitter.py
 import asyncio
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from ..sanitiser import sanitise
+from ..session import get_session
 from .base import HookResult, ToolHook
 
 
@@ -11,8 +13,8 @@ class AIEEventEmitter(ToolHook):
     """Emits structured tool_call events to the AIE logger via async Unix socket."""
 
     def __init__(self, socket_path: str | None = None, session_id: str | None = None):
-        self.socket_path = socket_path or "/home/osboxes/.openclaw/workspace/zoul/agent-interaction-evaluator-repo/evaluator/data/ailogger.sock"
-        self.session_id = session_id or "claw-aie-session"
+        self.socket_path = socket_path or os.environ.get("AILOGGER_SOCKET", "/tmp/ailogger.sock")
+        self._static_session_id = session_id  # fallback when no context
         self.event_count = 0
 
     async def _send_jsonrpc_async(self, method: str, params: dict) -> dict | None:
@@ -47,15 +49,21 @@ class AIEEventEmitter(ToolHook):
     ) -> dict:
         self.event_count += 1
         import pathlib
+
+        session_id, agent_id = get_session()
+        # Use static session_id as fallback if no context-level session is set
+        resolved_session_id = self._static_session_id if self._static_session_id else session_id
+        resolved_agent_id = agent_id
+
         return {
             "schema_version": "1.0",
             "event_id": str(uuid.uuid4()),
             "event_type": "tool_call",
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "agent_id": "claw-aie",
-            "session_id": self.session_id,
+            "agent_id": resolved_agent_id,
+            "session_id": resolved_session_id,
             "interaction_context": {
-                "channel": "claw-aie",
+                "channel": resolved_agent_id,
                 "workspace_path": str(pathlib.Path.cwd()),
                 "parent_event_id": None,
             },

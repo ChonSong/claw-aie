@@ -1,0 +1,5 @@
+#!/bin/bash
+# claw-aie runner — launch the AIE-compatible harness CLI
+# Can be run directly or installed via pip install -e .
+cd "$(dirname "$0")/.." || exit 1
+exec python3 -m aie_integration.cli "$@"

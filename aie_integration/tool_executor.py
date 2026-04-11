@@ -5,7 +5,10 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .hooks.runner import HookRunner
 
 @dataclass
 class ToolResult:
@@ -19,11 +22,26 @@ class ToolResult:
 class ToolExecutor:
     """Async tool executor — executes tools and returns results."""
 
-    def __init__(self, workspace_root: str | None = None):
+    def __init__(self, workspace_root: str | None = None, hook_runner: "HookRunner | None" = None):
         self.workspace_root = Path(workspace_root or Path.cwd())
+        self.hook_runner = hook_runner
 
     async def execute(self, tool_name: str, tool_input: dict) -> ToolResult:
         start = time.monotonic()
+
+        # Run pre-tool hooks
+        if self.hook_runner:
+            pre_result = await self.hook_runner.run_pre_tool_use(tool_name, tool_input)
+            if pre_result.denied:
+                return ToolResult(
+                    tool_name=tool_name,
+                    output="",
+                    exit_code=1,
+                    duration_ms=int((time.monotonic() - start) * 1000),
+                    denied=True,
+                    error=pre_result.denial_message
+                )
+
         try:
             if tool_name == "bash":
                 result = await self._bash(tool_input)
@@ -39,7 +57,13 @@ class ToolExecutor:
                 result = ToolResult(tool_name=tool_name, output="", exit_code=1, duration_ms=0, error=f"Unknown tool: {tool_name}")
         except Exception as e:
             result = ToolResult(tool_name=tool_name, output="", exit_code=1, duration_ms=0, error=str(e))
+
         result.duration_ms = int((time.monotonic() - start) * 1000)
+
+        # Run post-tool hooks
+        if self.hook_runner:
+            await self.hook_runner.run_post_tool_use(tool_name, tool_input, result.output)
+
         return result
 
     async def _bash(self, tool_input: dict) -> ToolResult:

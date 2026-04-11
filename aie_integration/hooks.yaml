@@ -1,0 +1,12 @@
+hooks:
+  permission:
+    enabled: true
+    tools: ["bash", "file_write", "file_read"]
+  rate_limit:
+    enabled: true
+    tools: ["bash"]
+    capacity: 10
+    refill_rate: 1.0
+  aie_emitter:
+    enabled: true
+    socket_path: "/tmp/ailogger.sock"
