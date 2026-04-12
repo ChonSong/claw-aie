@@ -102,7 +102,7 @@ class ToolExecutor:
         return result
 ```
 
-**MVP tools:**
+**MVP tools (Phase A — implemented):**
 
 | Tool | Description |
 |---|---|
@@ -114,6 +114,8 @@ class ToolExecutor:
 | `grep` | Search file contents |
 | `web_search` | Search the web |
 | `web_fetch` | Fetch URL content |
+
+> **Note:** Phase A implements bash, file_read, file_write, glob. The remaining tools (file_edit, grep, web_search, web_fetch) are planned for Phase B+.
 
 **ToolResult dataclass:**
 ```python
@@ -340,12 +342,12 @@ pytest-aiohttp            # for HTTP mock tools
 
 ## 8. Development Phases
 
-### Phase A — Foundation
-- [ ] Project structure (`aie_integration/`, `hooks/`, `tests/`)
-- [ ] `ToolExecutor` with MVP 4 tools (bash, file_read, file_write, glob)
-- [ ] `ToolResult` dataclass
-- [ ] `sanitiser.py` — strip secrets from tool inputs
-- [ ] Basic unit tests
+### Phase A — Foundation ✅ COMPLETE
+- [x] Project structure (`aie_integration/`, `hooks/`, `tests/`)
+- [x] `ToolExecutor` with MVP 4 tools (bash, file_read, file_write, glob)
+- [x] `ToolResult` dataclass
+- [x] `sanitiser.py` — strip secrets from tool inputs
+- [x] Basic unit tests
 
 ### Phase B — Hook System
 - [ ] `ToolHook` ABC
@@ -383,7 +385,7 @@ pytest-aiohttp            # for HTTP mock tools
 
 | # | Question | Notes |
 |---|---|---|
-| 1 | Should we add `assumption` and `correction` event emission? | Phase D or later — requires LLM output parsing |
+| 1 | ~~Should we add `assumption` and `correction` event emission?~~ | **Decision:** Phase D — requires LLM output parsing. Deferred. |
 | 2 | Web search tool — which provider? | TBD — could use DuckDuckGo or SERP API |
 | 3 | MCP tool support? | Phase D+ — claw-code has MCP in Rust, not in Python |
 

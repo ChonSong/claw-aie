@@ -1,228 +1,109 @@
-# Rewriting Project Claw Code
+# claw-aie — AIE-Compatible Agent Harness
 
-<p align="center">
-  <strong>⭐ The fastest repo in history to surpass 50K stars, reaching the milestone in just 2 hours after publication ⭐</strong>
-</p>
-
-<p align="center">
-  <a href="https://star-history.com/#instructkr/claw-code&Date">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date&theme=dark" />
-      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date" />
-      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=instructkr/claw-code&type=Date" width="600" />
-    </picture>
-  </a>
-</p>
-
-<p align="center">
-  <img src="assets/clawd-hero.jpeg" alt="Claw" width="300" />
-</p>
-
-<p align="center">
-  <strong>Better Harness Tools, not merely storing the archive of leaked Claw Code</strong>
-</p>
-
-<p align="center">
-  <a href="https://github.com/sponsors/instructkr"><img src="https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?logo=github&style=for-the-badge" alt="Sponsor on GitHub" /></a>
-</p>
-
-> [!IMPORTANT]
-> **Rust port is now in progress** on the [`dev/rust`](https://github.com/instructkr/claw-code/tree/dev/rust) branch and is expected to be merged into main today. The Rust implementation aims to deliver a faster, memory-safe harness runtime. Stay tuned — this will be the definitive version of the project.
-
-> If you find this work useful, consider [sponsoring @instructkr on GitHub](https://github.com/sponsors/instructkr) to support continued open-source harness engineering research.
+> Instrumented agent harness with async tool execution, PreToolUse/PostToolUse hooks, and AIE event emission.
+> Part of the [ChonSong Ecosystem](https://github.com/ChonSong/ecosystem).
 
 ---
 
-## Rust Port
+## What It Does
 
-The Rust workspace under `rust/` is the current systems-language port of the project.
+claw-aie is the **canonical execution layer** for the Agent Interaction Evaluator (AIE) ecosystem. Every consequential action passes through a hook pipeline, and every hook can emit structured events to AIE for indexing, drift detection, and audit trail generation.
 
-It currently includes:
+```
+Agent request
+    ↓
+ToolExecutor.execute(tool, input)
+    ↓ HookRunner.run_pre_tool_use() ← permission, rate limit, AIE emit
+    ↓ (denied? → return blocked)
+    ↓ _dispatch(tool, input) → actual execution
+    ↓ HookRunner.run_post_tool_use() ← AIE emit with outcome
+    ↓
+ToolResult
+    ↓ event emitted to AIE logger via /tmp/ailogger.sock
+```
 
-- `crates/api-client` — API client with provider abstraction, OAuth, and streaming support
-- `crates/runtime` — session state, compaction, MCP orchestration, prompt construction
-- `crates/tools` — tool manifest definitions and execution framework
-- `crates/commands` — slash commands, skills discovery, and config inspection
-- `crates/plugins` — plugin model, hook pipeline, and bundled plugins
-- `crates/compat-harness` — compatibility layer for upstream editor integration
-- `crates/claw-cli` — interactive REPL, markdown rendering, and project bootstrap/init flows
+## Architecture
 
-Run the Rust build:
+```
+claw-aie/
+├── src/                          # claw-code Python routing layer (upstream, as-is)
+├── aie_integration/              # Our additions
+│   ├── tool_executor.py          # Async tool executor (bash, file_read, file_write, glob, grep)
+│   ├── sanitiser.py              # Secret stripping for event payloads
+│   ├── hooks/
+│   │   ├── base.py               # ToolHook ABC
+│   │   ├── runner.py             # HookRunner — PreToolUse / PostToolUse pipeline
+│   │   ├── permission_hook.py    # Block destructive tools (rm -rf, system paths)
+│   │   ├── rate_limit_hook.py    # Per-tool token bucket rate limiting
+│   │   └── aie_emitter.py        # Emit structured events to AIE logger
+│   ├── config.py                 # hooks.yaml loader
+│   └── cli.py                    # CLI entry point (Phase D)
+├── SPEC.md                       # Full specification
+└── tests/
+```
+
+## Quick Start
 
 ```bash
-cd rust
-cargo build --release
+# Install dependencies
+pip install -e .
+
+# Run a tool directly (Phase A — working)
+PYTHONPATH=src:. python3 -c "
+import asyncio
+from aie_integration.tool_executor import ToolExecutor
+
+async def main():
+    executor = ToolExecutor()
+    result = await executor.execute('bash', {'command': 'echo hello'})
+    print(result.output)  # → hello
+
+asyncio.run(main())
+"
 ```
 
-## Backstory
+## Development Phases
 
-At 4 AM on March 31, 2026, I woke up to my phone blowing up with notifications. The Claw Code source had been exposed, and the entire dev community was in a frenzy. My girlfriend in Korea was genuinely worried I might face legal action from the original authors just for having the code on my machine — so I did what any engineer would do under pressure: I sat down, ported the core features to Python from scratch, and pushed it before the sun came up.
+| Phase | Status | Description |
+|---|---|---|
+| A — Foundation | ✅ Complete | ToolExecutor, ToolResult, sanitiser, 4 MVP tools |
+| B — Hook System | 📋 Next | ToolHook ABC, HookRunner, permission/rate-limit hooks, config loader |
+| C — AIE Integration | 📋 Planned | AIEEventEmitter hook, ailogger.sock connection, session propagation |
+| D — CLI + Invocation | 📋 Planned | `claw-aie` CLI, PortRuntime wiring, e2e test |
 
-The whole thing was orchestrated end-to-end using [oh-my-codex (OmX)](https://github.com/Yeachan-Heo/oh-my-codex) by [@bellman_ych](https://x.com/bellman_ych) — a workflow layer built on top of OpenAI's Codex ([@OpenAIDevs](https://x.com/OpenAIDevs)). I used `$team` mode for parallel code review and `$ralph` mode for persistent execution loops with architect-level verification. The entire porting session — from reading the original harness structure to producing a working Python tree with tests — was driven through OmX orchestration.
+See [SPEC.md](./SPEC.md) for detailed deliverables per phase.
 
-The result is a clean-room Python rewrite that captures the architectural patterns of Claw Code's agent harness without copying any proprietary source. I'm now actively collaborating with [@bellman_ych](https://x.com/bellman_ych) — the creator of OmX himself — to push this further. The basic Python foundation is already in place and functional, but we're just getting started. **Stay tuned — a much more capable version is on the way.**
+## Hook Configuration
 
-The Rust port was developed with both [oh-my-codex (OmX)](https://github.com/Yeachan-Heo/oh-my-codex) and [oh-my-opencode (OmO)](https://github.com/code-yeongyu/oh-my-openagent): OmX drove scaffolding, orchestration, and architecture direction, while OmO was used for later implementation acceleration and verification support.
+Hooks are loaded from `~/.claw-aie/hooks.yaml`:
 
-https://github.com/instructkr/claw-code
-
-![Tweet screenshot](assets/tweet-screenshot.png)
-
-## The Creators Featured in Wall Street Journal For Avid Claw Code Fans
-
-I've been deeply interested in **harness engineering** — studying how agent systems wire tools, orchestrate tasks, and manage runtime context. This isn't a sudden thing. The Wall Street Journal featured my work earlier this month, documenting how I've been one of the most active power users exploring these systems:
-
-> AI startup worker Sigrid Jin, who attended the Seoul dinner, single-handedly used 25 billion of Claw Code tokens last year. At the time, usage limits were looser, allowing early enthusiasts to reach tens of billions of tokens at a very low cost.
->
-> Despite his countless hours with Claw Code, Jin isn't faithful to any one AI lab. The tools available have different strengths and weaknesses, he said. Codex is better at reasoning, while Claw Code generates cleaner, more shareable code.
->
-> Jin flew to San Francisco in February for Claw Code's first birthday party, where attendees waited in line to compare notes with Cherny. The crowd included a practicing cardiologist from Belgium who had built an app to help patients navigate care, and a California lawyer who made a tool for automating building permit approvals using Claw Code.
->
-> "It was basically like a sharing party," Jin said. "There were lawyers, there were doctors, there were dentists. They did not have software engineering backgrounds."
->
-> — *The Wall Street Journal*, March 21, 2026, [*"The Trillion Dollar Race to Automate Our Entire Lives"*](https://lnkd.in/gs9td3qd)
-
-![WSJ Feature](assets/wsj-feature.png)
-
----
-
-## Porting Status
-
-The main source tree is now Python-first.
-
-- `src/` contains the active Python porting workspace
-- `tests/` verifies the current Python workspace
-- the exposed snapshot is no longer part of the tracked repository state
-
-The current Python workspace is not yet a complete one-to-one replacement for the original system, but the primary implementation surface is now Python.
-
-## Why this rewrite exists
-
-I originally studied the exposed codebase to understand its harness, tool wiring, and agent workflow. After spending more time with the legal and ethical questions—and after reading the essay linked below—I did not want the exposed snapshot itself to remain the main tracked source tree.
-
-This repository now focuses on Python porting work instead.
-
-## Repository Layout
-
-```text
-.
-├── src/                                # Python porting workspace
-│   ├── __init__.py
-│   ├── commands.py
-│   ├── main.py
-│   ├── models.py
-│   ├── port_manifest.py
-│   ├── query_engine.py
-│   ├── task.py
-│   └── tools.py
-├── rust/                               # Rust port (claw CLI)
-│   ├── crates/api/                     # API client + streaming
-│   ├── crates/runtime/                 # Session, tools, MCP, config
-│   ├── crates/claw-cli/               # Interactive CLI binary
-│   ├── crates/plugins/                 # Plugin system
-│   ├── crates/commands/                # Slash commands
-│   ├── crates/server/                  # HTTP/SSE server (axum)
-│   ├── crates/lsp/                    # LSP client integration
-│   └── crates/tools/                   # Tool specs
-├── tests/                              # Python verification
-├── assets/omx/                         # OmX workflow screenshots
-├── 2026-03-09-is-legal-the-same-as-legitimate-ai-reimplementation-and-the-erosion-of-copyleft.md
-└── README.md
+```yaml
+hooks:
+  pre_tool_use:
+    - name: "permission"
+      enabled: true
+    - name: "aie_emitter"
+      enabled: true
+      emit_to_aie: true
+  post_tool_use:
+    - name: "aie_emitter"
+      enabled: true
+      emit_to_aie: true
 ```
 
-## Python Workspace Overview
+## Ecosystem Context
 
-The new Python `src/` tree currently provides:
+| Layer | Component | Role |
+|---|---|---|
+| L1 — Orchestration | [ClawTeam](https://github.com/HKUDS/ClawTeam) + [sidecar](https://github.com/ChonSong/clawteam-sidecar) | Task delegation, swarm coordination |
+| **L2 — Execution** | **claw-aie** (this repo) | **Tool execution + event emission** |
+| L3 — Observability | [AIE](https://github.com/ChonSong/agent-interaction-evaluator) | Drift detection, oracle evaluation, audit trails |
+| L4 — Context | [RepoTransmute](https://github.com/ChonSong/repo-transmute) | Code blueprints, semantic search |
 
-- **`port_manifest.py`** — summarizes the current Python workspace structure
-- **`models.py`** — dataclasses for subsystems, modules, and backlog state
-- **`commands.py`** — Python-side command port metadata
-- **`tools.py`** — Python-side tool port metadata
-- **`query_engine.py`** — renders a Python porting summary from the active workspace
-- **`main.py`** — a CLI entrypoint for manifest and summary output
+## Upstream
 
-## Quickstart
+claw-aie extends the [claw-code](https://github.com/instructkr/claw-code) Python routing layer with AIE instrumentation. The upstream `src/` directory is used as-is; all AIE additions live in `aie_integration/`.
 
-Render the Python porting summary:
+## License
 
-```bash
-python3 -m src.main summary
-```
-
-Print the current Python workspace manifest:
-
-```bash
-python3 -m src.main manifest
-```
-
-List the current Python modules:
-
-```bash
-python3 -m src.main subsystems --limit 16
-```
-
-Run verification:
-
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-Run the parity audit against the local ignored archive (when present):
-
-```bash
-python3 -m src.main parity-audit
-```
-
-Inspect mirrored command/tool inventories:
-
-```bash
-python3 -m src.main commands --limit 10
-python3 -m src.main tools --limit 10
-```
-
-## Current Parity Checkpoint
-
-The port now mirrors the archived root-entry file surface, top-level subsystem names, and command/tool inventories much more closely than before. However, it is **not yet** a full runtime-equivalent replacement for the original TypeScript system; the Python tree still contains fewer executable runtime slices than the archived source.
-
-## Built with `oh-my-codex` and `oh-my-opencode`
-
-This repository's porting, cleanroom hardening, and verification workflow was AI-assisted with Yeachan Heo's tooling stack, with **oh-my-codex (OmX)** as the primary scaffolding and orchestration layer.
-
-- [**oh-my-codex (OmX)**](https://github.com/Yeachan-Heo/oh-my-codex) — scaffolding, orchestration, architecture direction, and core porting workflow
-- [**oh-my-opencode (OmO)**](https://github.com/code-yeongyu/oh-my-openagent) — implementation acceleration, cleanup, and verification support
-
-Key workflow patterns used during the port:
-
-- **`$team` mode:** coordinated parallel review and architectural feedback
-- **`$ralph` mode:** persistent execution, verification, and completion discipline
-- **Cleanroom passes:** naming/branding cleanup, QA, and release validation across the Rust workspace
-- **Manual and live validation:** build, test, manual QA, and real API-path verification before publish
-
-### OmX workflow screenshots
-
-![OmX workflow screenshot 1](assets/omx/omx-readme-review-1.png)
-
-*Ralph/team orchestration view while the README and essay context were being reviewed in terminal panes.*
-
-![OmX workflow screenshot 2](assets/omx/omx-readme-review-2.png)
-
-*Split-pane review and verification flow during the final README wording pass.*
-
-## Community
-
-<p align="center">
-  <a href="https://instruct.kr/"><img src="assets/instructkr.png" alt="instructkr" width="400" /></a>
-</p>
-
-Join the [**instructkr Discord**](https://instruct.kr/) — the best Korean language model community. Come chat about LLMs, harness engineering, agent workflows, and everything in between.
-
-[![Discord](https://img.shields.io/badge/Join%20Discord-instruct.kr-5865F2?logo=discord&style=for-the-badge)](https://instruct.kr/)
-
-## Star History
-
-See the chart at the top of this README.
-
-## Ownership / Affiliation Disclaimer
-
-- This repository does **not** claim ownership of the original Claw Code source material.
-- This repository is **not affiliated with, endorsed by, or maintained by the original authors**.
+MIT
