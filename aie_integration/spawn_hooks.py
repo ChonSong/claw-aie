@@ -11,6 +11,8 @@ import json
 import os
 import uuid
 from abc import ABC, abstractmethod
+
+from .logger_client import AIELoggerClient
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -90,27 +92,10 @@ class DriftCheckHook(SpawnHook):
 
     async def _query_drift(self, session_id: str) -> float:
         """Query AIE for current drift score."""
-        import asyncio
-
-        try:
-            reader, writer = await asyncio.open_unix_connection(self.socket_path)
-            request = json.dumps({
-                "jsonrpc": "2.0",
-                "method": "drift_score",
-                "params": {"session_id": session_id},
-                "id": 1,
-            }).encode() + b"\n"
-            writer.write(request)
-            await writer.drain()
-            response_bytes = await asyncio.wait_for(reader.readline(), timeout=5)
-            writer.close()
-            await writer.wait_closed()
-
-            if response_bytes:
-                response = json.loads(response_bytes.decode())
-                return response.get("result", {}).get("score", 0.0)
-        except (ConnectionRefusedError, FileNotFoundError, asyncio.TimeoutError):
-            pass
+        client = AIELoggerClient(self.socket_path)
+        response = await client.query("drift_score", {"session_id": session_id})
+        if response and "result" in response:
+            return response["result"].get("score", 0.0)
         return 0.0
 
 
@@ -138,33 +123,14 @@ class OracleEvalHook(SpawnHook):
 
     async def _run_oracle(self, session_id: str) -> dict:
         """Query AIE oracle for session evaluation."""
-        import asyncio
-
-        try:
-            reader, writer = await asyncio.open_unix_connection(self.socket_path)
-            request = json.dumps({
-                "jsonrpc": "2.0",
-                "method": "oracle_eval",
-                "params": {"session_id": session_id},
-                "id": 2,
-            }).encode() + b"\n"
-            writer.write(request)
-            await writer.drain()
-            response_bytes = await asyncio.wait_for(reader.readline(), timeout=10)
-            writer.close()
-            await writer.wait_closed()
-
-            if response_bytes:
-                response = json.loads(response_bytes.decode())
-                return response.get("result", {})
-        except (ConnectionRefusedError, FileNotFoundError, asyncio.TimeoutError):
-            pass
+        client = AIELoggerClient(self.socket_path)
+        response = await client.query("oracle_eval", {"session_id": session_id})
+        if response and "result" in response:
+            return response["result"]
         return {"status": "skipped", "reason": "oracle_unavailable"}
 
     async def _emit_oracle_event(self, context: SpawnContext, oracle_result: dict) -> None:
         """Emit oracle evaluation event to AIE logger."""
-        import asyncio
-
         event = {
             "schema_version": "1.0",
             "event_id": str(uuid.uuid4()),
@@ -179,22 +145,8 @@ class OracleEvalHook(SpawnHook):
             },
             "oracle_result": oracle_result,
         }
-
-        try:
-            reader, writer = await asyncio.open_unix_connection(self.socket_path)
-            request = json.dumps({
-                "jsonrpc": "2.0",
-                "method": "emit",
-                "params": {"event": event},
-                "id": 3,
-            }).encode() + b"\n"
-            writer.write(request)
-            await writer.drain()
-            await asyncio.wait_for(reader.readline(), timeout=3)
-            writer.close()
-            await writer.wait_closed()
-        except (ConnectionRefusedError, FileNotFoundError, asyncio.TimeoutError):
-            pass
+        client = AIELoggerClient(self.socket_path)
+        await client.emit(event)
 
 
 class SessionLogHook(SpawnHook):

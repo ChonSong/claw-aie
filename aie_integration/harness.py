@@ -278,23 +278,9 @@ class Harness:
             pass  # Never let event emission crash the harness
 
     async def _emit_to_logger(self, event: dict) -> None:
-        """Send event to AIE logger via Unix socket (JSON-RPC)."""
-        socket_path = os.environ.get("AILOGGER_SOCKET", "/tmp/ailogger.sock")
-        try:
-            reader, writer = await asyncio.open_unix_connection(socket_path)
-            request = json.dumps({
-                "jsonrpc": "2.0",
-                "method": "emit",
-                "params": {"event": event},
-                "id": 0,
-            }).encode() + b"\n"
-            writer.write(request)
-            await writer.drain()
-            await asyncio.wait_for(reader.readline(), timeout=3)
-            writer.close()
-            await writer.wait_closed()
-        except (ConnectionRefusedError, FileNotFoundError, asyncio.TimeoutError):
-            pass  # Logger not running — events silently dropped
+        """Send event to AIE logger via shared client."""
+        client = AIELoggerClient()
+        await client.emit(event)
 
     @property
     def tool_calls(self) -> list[ParsedToolCall]:
