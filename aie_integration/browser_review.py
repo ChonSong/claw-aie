@@ -120,6 +120,8 @@ class BrowserReviewer:
         # Determine verdict
         if any(p.error for p in pages):
             verdict = "fail"
+        elif any(p.load_status >= 400 for p in pages):
+            verdict = "fail"
         elif total_errors > 0 or total_a11y > 5:
             verdict = "warn"
         else:
