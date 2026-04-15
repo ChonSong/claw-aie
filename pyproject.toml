@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "AIE-compatible agent harness with PreToolUse/PostToolUse hooks"
 requires-python = ">=3.11"
 dependencies = [
+    "openharness-ai>=0.1.6",
     "aiohttp>=3.9.0",
     "httpx>=0.26.0",
     "pyyaml>=6.0",
@@ -15,6 +16,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+browser = [
+    "playwright>=1.50.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio",
