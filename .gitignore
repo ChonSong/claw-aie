@@ -1,3 +1,4 @@
+.port_sessions/
 *.pyc
 __pycache__/
 src/
