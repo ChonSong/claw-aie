@@ -251,6 +251,7 @@ class TestToolExecutorHookIntegration:
 
         denying_hook = PermissionHook()
         hook_runner.register_pre(denying_hook)
+        executor.hook_runner = hook_runner  # Wire up the hook runner
 
         result = await executor.execute("bash", {"command": "rm -rf /tmp"})
 

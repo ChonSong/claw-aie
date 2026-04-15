@@ -1,0 +1,71 @@
+{
+  "name": "browser-review",
+  "description": "Headless browser review agent — Playwright-based visual + functional review for PRs and deployments",
+  "agent": "claw-aie",
+  "command": ["claw-aie", "run", "--profile", "browser-review"],
+  "model": "claude-sonnet-4-20250514",
+  "aie_enabled": true,
+  "tools": [
+    "bash",
+    "file_read",
+    "file_write",
+    "browser_navigate",
+    "browser_screenshot",
+    "browser_click",
+    "browser_fill",
+    "browser_console",
+    "browser_assert",
+    "browser_assert_no_console_errors",
+    "browser_accessibility_scan"
+  ],
+  "timeout": 600,
+  "drift_threshold": 0.7,
+  "oracle_check": true,
+  "env": {
+    "BROWSER_REVIEW_SCREENSHOT_DIR": ".browser-review"
+  },
+  "review_workflow": {
+    "steps": [
+      {
+        "name": "navigate",
+        "description": "Open the target URL (PR preview, localhost deployment, etc.)"
+      },
+      {
+        "name": "screenshot_homepage",
+        "description": "Full-page screenshot of landing page"
+      },
+      {
+        "name": "console_check",
+        "description": "Check for JS errors in console"
+      },
+      {
+        "name": "navigate_changed_routes",
+        "description": "Visit URLs corresponding to changed files in the PR"
+      },
+      {
+        "name": "screenshot_changed_views",
+        "description": "Screenshot each changed view"
+      },
+      {
+        "name": "form_flows",
+        "description": "Test any form submissions in changed areas"
+      },
+      {
+        "name": "a11y_scan",
+        "description": "Run accessibility scan on changed views"
+      },
+      {
+        "name": "report",
+        "description": "Generate structured review report with screenshots, console errors, a11y issues, and pass/fail verdict"
+      }
+    ],
+    "report_format": {
+      "verdict": "pass|fail|warn",
+      "screenshots": ["list of screenshot paths"],
+      "console_errors": ["list of errors"],
+      "a11y_issues": ["list of issues"],
+      "visual_regressions": ["list of suspected regressions"],
+      "summary": "human-readable paragraph"
+    }
+  }
+}

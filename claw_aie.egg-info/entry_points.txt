@@ -1,0 +1,2 @@
+[console_scripts]
+claw-aie = aie_integration.cli:main

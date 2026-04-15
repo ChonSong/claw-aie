@@ -5,7 +5,7 @@ import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TYPE_CHECKING
+from typing import Any, Callable, Awaitable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .hooks.runner import HookRunner
@@ -19,15 +19,37 @@ class ToolResult:
     denied: bool = False
     error: str | None = None
 
+# Type for custom tool handlers
+ToolHandler = Callable[[dict], Awaitable[ToolResult]]
+
+
 class ToolExecutor:
-    """Async tool executor — executes tools and returns results."""
+    """Async tool executor — executes tools and returns results.
+
+    Supports built-in tools (bash, file_read, file_write, glob, grep),
+    browser tools (browser_*), and custom registered tool handlers.
+    """
 
     def __init__(self, workspace_root: str | None = None, hook_runner: "HookRunner | None" = None):
         self.workspace_root = Path(workspace_root or Path.cwd())
         self.hook_runner = hook_runner
+        self._custom_tools: dict[str, ToolHandler] = {}
+
+    def register_tool(self, name: str, handler: ToolHandler) -> None:
+        """Register a custom tool handler."""
+        self._custom_tools[name] = handler
+
+    def register_browser_tools(self) -> None:
+        """Register all browser tools from browser_tools.py."""
+        from .browser_tools import BROWSER_TOOLS
+        for name, handler in BROWSER_TOOLS.items():
+            self._custom_tools[name] = handler
 
     async def execute(self, tool_name: str, tool_input: dict) -> ToolResult:
         start = time.monotonic()
+
+        # Inject workspace root for tools that need it
+        tool_input.setdefault("_workspace_root", str(self.workspace_root))
 
         # Run pre-tool hooks
         if self.hook_runner:
@@ -43,7 +65,10 @@ class ToolExecutor:
                 )
 
         try:
-            if tool_name == "bash":
+            # Check custom tools first (including browser tools)
+            if tool_name in self._custom_tools:
+                result = await self._custom_tools[tool_name](tool_input)
+            elif tool_name == "bash":
                 result = await self._bash(tool_input)
             elif tool_name == "file_read":
                 result = await self._file_read(tool_input)

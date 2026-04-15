@@ -46,13 +46,14 @@ class AIEEventEmitter(ToolHook):
         tool_input: dict,
         output: str = "",
         status: str = "pending",
+        duration_ms: int = 0,
     ) -> dict:
         self.event_count += 1
         import pathlib
 
         session_id, agent_id = get_session()
-        # Use static session_id as fallback if no context-level session is set
-        resolved_session_id = self._static_session_id if self._static_session_id else session_id
+        # Context session takes precedence; static session_id is fallback
+        resolved_session_id = session_id if session_id != "default" else self._static_session_id
         resolved_agent_id = agent_id
 
         return {
@@ -63,7 +64,7 @@ class AIEEventEmitter(ToolHook):
             "agent_id": resolved_agent_id,
             "session_id": resolved_session_id,
             "interaction_context": {
-                "channel": resolved_agent_id,
+                "channel": "terminal",
                 "workspace_path": str(pathlib.Path.cwd()),
                 "parent_event_id": None,
             },
@@ -79,22 +80,22 @@ class AIEEventEmitter(ToolHook):
             },
             "outcome": {
                 "status": status,
-                "duration_ms": 0,
+                "duration_ms": duration_ms,
                 "error_message": None,
                 "output_summary": output[:500] if output else None,
             },
         }
 
     async def pre_tool_use(self, tool_name: str, tool_input: dict) -> HookResult | None:
-        event = self._build_event(tool_name, tool_input, status="partial")
+        event = self._build_event(tool_name, tool_input, status="pending")
         await self._send_jsonrpc_async("emit", {"event": event})
         # pre hooks never block execution
         return None
 
-    async def post_tool_use(self, tool_name: str, tool_input: dict, output: str) -> None:
+    async def post_tool_use(self, tool_name: str, tool_input: dict, output: str, duration_ms: int = 0) -> None:
         is_error = isinstance(output, str) and (
             output.startswith("Error:") or "not found" in output.lower()
         )
         status = "error" if is_error else "success"
-        event = self._build_event(tool_name, tool_input, output, status=status)
+        event = self._build_event(tool_name, tool_input, output, status=status, duration_ms=duration_ms)
         await self._send_jsonrpc_async("emit", {"event": event})
