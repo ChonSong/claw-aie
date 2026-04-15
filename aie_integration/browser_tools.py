@@ -53,14 +53,15 @@ async def cleanup_browser():
 async def browser_navigate(tool_input: dict) -> ToolResult:
     """Navigate to URL and wait for page load."""
     url = tool_input.get("url", "")
-    wait_ms = tool_input.get("wait_ms", 5000)
+    wait_ms = tool_input.get("wait_ms", 10000)
+    wait_until = tool_input.get("wait_until", "domcontentloaded")
     if not url:
         return ToolResult(tool_name="browser_navigate", output="Error: url is required", exit_code=1, duration_ms=0)
 
     start = time.monotonic()
     try:
         page = await _ensure_browser()
-        response = await page.goto(url, wait_until="networkidle", timeout=wait_ms)
+        response = await page.goto(url, wait_until=wait_until, timeout=wait_ms)
         status = response.status if response else "no response"
         title = await page.title()
         duration = int((time.monotonic() - start) * 1000)
