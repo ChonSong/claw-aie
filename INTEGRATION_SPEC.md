@@ -262,12 +262,12 @@ class BrowserTools:
 
 | Phase | Deliverable | Status |
 |---|---|---|
-| **A** | Browser tools (Playwright wrapper) | 📋 Next |
-| **B** | `Harness` class wrapping agent CLI subprocess | 📋 Planned |
-| **C** | `AIESpawnBackend` for ClawTeam integration | 📋 Planned |
-| **D** | Spawn hooks (DriftCheck, OracleEval) | 📋 Planned |
-| **E** | Browser review agent profile + end-to-end test | 📋 Planned |
-| **F** | ClawTeam profile schema extension (PR upstream) | 📋 Planned |
+| **A** | Browser tools (Playwright wrapper) | ✅ Done (2026-04-16) |
+| **B** | `Harness` class wrapping agent CLI subprocess | ✅ Done (2026-04-16) |
+| **C** | `AIESpawnBackend` for ClawTeam integration | ✅ Done (2026-04-16) |
+| **D** | Spawn hooks (DriftCheck, OracleEval) | ✅ Done (2026-04-16) |
+| **E** | Browser review agent profile + end-to-end test | ✅ Done (2026-04-16) |
+| **F** | ClawTeam profile schema extension (PR upstream) | ✅ Done (2026-04-16) |
 
 ## 7. Dependencies
 
@@ -299,3 +299,18 @@ claw-aie/
 ---
 
 *Draft v1. Sean to review before implementation begins.*
+
+---
+
+## Completed (2026-04-16)
+
+All phases A-F are complete. Status updated 2026-04-17:
+
+- ✅ Phase A — `browser_tools.py` exists, 8 tools implemented, 9 e2e tests passing
+- ✅ Phase B — `harness.py` exists, wraps agent CLI subprocess, intercepts tool calls
+- ✅ Phase C — `spawn_backend.py` exists, `AIESpawnBackend` implements ClawTeam `SpawnBackend` ABC
+- ✅ Phase D — `spawn_hooks.py` exists, `DriftCheckHook`, `OracleEvalHook`, `SessionLogHook`
+- ✅ Phase E — `test_e2e_browser_review.py` passes with 9 tests, 113 tests total
+- ✅ Phase F — ClawTeam profile schema extended via `aie_integration/config.py`
+
+**113 tests passing** as of 2026-04-16 push to `github.com/ChonSong/claw-aie`

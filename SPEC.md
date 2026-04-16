@@ -33,7 +33,7 @@ A reference harness that AIE instruments. Any agent can be built on top of it, o
 │                          claw-aie                                    │
 │                                                                      │
 │  ┌──────────────────────────────────────────────────────────────┐    │
-│  │  claw-code Python (src/) — as-is from fork                  │    │
+│  │  claw-code Python (claw-aie-harness) — imported as dependency                  │    │
 │  │  PortRuntime.route_prompt()                                 │    │
 │  │  QueryEnginePort.submit_message()                            │    │
 │  │  ToolPool + tool manifests                                  │    │
@@ -249,7 +249,7 @@ The hook system is extensible — add new hooks by creating a `ToolHook` subclas
 
 ```
 claw-aie/
-├── src/                         # claw-code Python (as-is from fork)
+├── claw-aie-harness/            # claw-aie-harness (openharness-ai) — upstream routing layer
 │   ├── runtime.py               # PortRuntime
 │   ├── query_engine.py         # QueryEnginePort
 │   ├── tool_pool.py            # ToolPool
