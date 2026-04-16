@@ -74,3 +74,6 @@ def _matches_sanitise_field(field_name: str) -> bool:
         if sf in upper:
             return True
     return False
+
+# Public shorthand (used by tests and external callers)
+sanitise = sanitise_event

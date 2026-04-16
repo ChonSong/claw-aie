@@ -17,12 +17,11 @@ def _extract_event(mock_call):
     """Extract event dict from mock call args (handles both positional and kwargs)."""
     args, kwargs = mock_call
     if args:
-        # Called as _send_jsonrpc_async("emit", {"event": event})
-        method = args[0]
-        params = args[1]
-        return params["event"]
-    # Fallback to kwargs if used
-    return kwargs.get("params", {}).get("event", {})
+        # Called as emit(event) → first positional arg is the event dict
+        if isinstance(args[0], dict) and "event_type" in args[0]:
+            return args[0]
+        return args[0].get("event", {})
+    return kwargs.get("event", {})
 
 
 class TestAIEEventEmitterPreToolUse:
@@ -33,15 +32,15 @@ class TestAIEEventEmitterPreToolUse:
         """pre_tool_use should emit event with status='pending'."""
         set_session("test-session-123", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-123")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         result = await emitter.pre_tool_use("bash", {"command": "echo hello"})
 
         # pre hooks always return None (never block)
         assert result is None
         # Should have sent the event
-        emitter._send_jsonrpc_async.assert_called_once()
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        emitter.client.emit.assert_called_once()
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["outcome"]["status"] == "pending"
 
     @pytest.mark.asyncio
@@ -49,11 +48,11 @@ class TestAIEEventEmitterPreToolUse:
         """pre_tool_use should emit event with correct schema fields."""
         set_session("test-session-456", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-456")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("file_read", {"path": "/tmp/test.txt"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
 
         # Required schema fields
         assert "schema_version" in event
@@ -74,11 +73,11 @@ class TestAIEEventEmitterPreToolUse:
         """pre_tool_use should emit correct tool info."""
         set_session("test-session-789", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-789")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("glob", {"pattern": "*.py"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
 
         assert event["tool"]["name"] == "glob"
         assert event["tool"]["namespace"] == "claw-aie"
@@ -90,11 +89,11 @@ class TestAIEEventEmitterPreToolUse:
         """pre_tool_use should emit correct trigger info."""
         set_session("test-session-abc", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-abc")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("bash", {"command": "ls"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
 
         assert event["trigger"]["type"] == "explicit_request"
         assert event["trigger"]["triggered_by_event_id"] is None
@@ -108,11 +107,11 @@ class TestAIEEventEmitterPostToolUse:
         """post_tool_use should emit success when output is normal."""
         set_session("test-session-post", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-post")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.post_tool_use("bash", {"command": "echo hello"}, "hello\n")
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["outcome"]["status"] == "success"
 
     @pytest.mark.asyncio
@@ -120,11 +119,11 @@ class TestAIEEventEmitterPostToolUse:
         """post_tool_use should emit error when output starts with 'Error:'."""
         set_session("test-session-err", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-err")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.post_tool_use("bash", {"command": "cat /nonexistent"}, "Error: file not found")
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["outcome"]["status"] == "error"
 
     @pytest.mark.asyncio
@@ -132,11 +131,11 @@ class TestAIEEventEmitterPostToolUse:
         """post_tool_use should emit error when output contains 'not found'."""
         set_session("test-session-nf", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-nf")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.post_tool_use("file_read", {"path": "/missing.txt"}, "File /missing.txt not found")
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["outcome"]["status"] == "error"
 
     @pytest.mark.asyncio
@@ -144,11 +143,11 @@ class TestAIEEventEmitterPostToolUse:
         """post_tool_use should include duration_ms in outcome."""
         set_session("test-session-dur", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-dur")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.post_tool_use("bash", {"command": "sleep 0.1"}, "done", duration_ms=150)
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["outcome"]["duration_ms"] == 150
 
 
@@ -160,11 +159,11 @@ class TestAIEEventEmitterSanitisation:
         """Password field should be redacted."""
         set_session("test-session-san", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-san")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("bash", {"command": "login", "PASSWORD": "secret123"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["tool"]["arguments"]["PASSWORD"] == "[REDACTED]"
 
     @pytest.mark.asyncio
@@ -172,11 +171,11 @@ class TestAIEEventEmitterSanitisation:
         """API_KEY field should be redacted."""
         set_session("test-session-key", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-key")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("api_call", {"endpoint": "/data", "API_KEY": "sk-12345"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["tool"]["arguments"]["API_KEY"] == "[REDACTED]"
 
     @pytest.mark.asyncio
@@ -184,11 +183,11 @@ class TestAIEEventEmitterSanitisation:
         """TOKEN field should be redacted."""
         set_session("test-session-token", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-token")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("http_request", {"url": "http://api", "TOKEN": "bearer xyz"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["tool"]["arguments"]["TOKEN"] == "[REDACTED]"
 
     @pytest.mark.asyncio
@@ -196,11 +195,11 @@ class TestAIEEventEmitterSanitisation:
         """SECRET field should be redacted."""
         set_session("test-session-secret", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-secret")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("auth", {"user": "admin", "SECRET": "mysecret"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["tool"]["arguments"]["SECRET"] == "[REDACTED]"
 
     @pytest.mark.asyncio
@@ -208,11 +207,11 @@ class TestAIEEventEmitterSanitisation:
         """AUTHORIZATION field should be redacted."""
         set_session("test-session-authz", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-authz")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("curl", {"url": "http://api", "AUTHORIZATION": "Basic abc"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["tool"]["arguments"]["AUTHORIZATION"] == "[REDACTED]"
 
     @pytest.mark.asyncio
@@ -220,11 +219,11 @@ class TestAIEEventEmitterSanitisation:
         """Non-sensitive fields should not be redacted."""
         set_session("test-session-safe", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-safe")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("bash", {"command": "ls", "path": "/tmp", "verbose": True})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["tool"]["arguments"]["command"] == "ls"
         assert event["tool"]["arguments"]["path"] == "/tmp"
         assert event["tool"]["arguments"]["verbose"] is True
@@ -238,12 +237,12 @@ class TestAIEEventEmitterOutputTruncation:
         """Output over 500 chars should be truncated."""
         set_session("test-session-long", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-long")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         long_output = "x" * 600
         await emitter.post_tool_use("bash", {"command": "cat file"}, long_output)
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert len(event["outcome"]["output_summary"]) == 500
 
     @pytest.mark.asyncio
@@ -251,12 +250,12 @@ class TestAIEEventEmitterOutputTruncation:
         """Output under 500 chars should not be truncated."""
         set_session("test-session-short", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-short")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         short_output = "hello world"
         await emitter.post_tool_use("bash", {"command": "echo hello"}, short_output)
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["outcome"]["output_summary"] == "hello world"
 
     @pytest.mark.asyncio
@@ -264,11 +263,11 @@ class TestAIEEventEmitterOutputTruncation:
         """Empty output should result in null output_summary."""
         set_session("test-session-empty", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-empty")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.post_tool_use("bash", {"command": "true"}, "")
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["outcome"]["output_summary"] is None
 
 
@@ -280,13 +279,13 @@ class TestAIEEventEmitterEventId:
         """Each event should have a unique event_id."""
         set_session("test-session-uid", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-uid")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("bash", {"command": "echo 1"})
         await emitter.pre_tool_use("bash", {"command": "echo 2"})
         await emitter.post_tool_use("bash", {"command": "echo 3"}, "output")
 
-        calls = emitter._send_jsonrpc_async.call_args_list
+        calls = emitter.client.emit.call_args_list
         event1 = _extract_event(calls[0])
         event2 = _extract_event(calls[1])
         event3 = _extract_event(calls[2])
@@ -304,11 +303,11 @@ class TestAIEEventEmitterTimestamp:
         """Timestamp should be in ISO-8601 format."""
         set_session("test-session-ts", "claw-aie")
         emitter = AIEEventEmitter(session_id="test-session-ts")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("bash", {"command": "date"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         # ISO-8601 format should contain 'T' for separator
         assert "T" in event["timestamp"]
         # Either ends with Z (UTC) or +00:00 (UTC offset)
@@ -322,11 +321,11 @@ class TestAIEEventEmitterSessionFallback:
     async def test_uses_static_session_id_when_no_context(self):
         """Should use static session_id when no context is set."""
         emitter = AIEEventEmitter(session_id="static-session-id")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("bash", {"command": "echo"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         assert event["session_id"] == "static-session-id"
 
     @pytest.mark.asyncio
@@ -334,11 +333,11 @@ class TestAIEEventEmitterSessionFallback:
         """Should use session from context when available."""
         set_session("context-session-id", "my-agent")
         emitter = AIEEventEmitter(session_id="static-session-id")
-        emitter._send_jsonrpc_async = AsyncMock(return_value={"result": {"status": "ok"}})
+        emitter.client.emit = AsyncMock(return_value={"result": {"status": "ok"}})
 
         await emitter.pre_tool_use("bash", {"command": "echo"})
 
-        event = _extract_event(emitter._send_jsonrpc_async.call_args)
+        event = _extract_event(emitter.client.emit.call_args)
         # Context session takes precedence over static
         assert event["session_id"] == "context-session-id"
 

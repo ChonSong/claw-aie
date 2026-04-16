@@ -4,7 +4,8 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
-from ..sanitiser import sanitise
+from ..sanitiser import sanitise_event as sanitise
+from ..logger_client import AIELoggerClient
 from ..session import get_session
 from .base import HookResult, ToolHook
 
@@ -13,9 +14,15 @@ class AIEEventEmitter(ToolHook):
     """Emits structured tool_call events to the AIE logger via async Unix socket."""
 
     def __init__(self, socket_path: str | None = None, session_id: str | None = None):
+        self._socket_path = socket_path  # stored for test assertion compatibility
         self.client = AIELoggerClient(socket_path)
         self._static_session_id = session_id  # fallback when no context
         self.event_count = 0
+
+    @property
+    def socket_path(self) -> str:
+        """Expose socket_path for test compatibility."""
+        return self._socket_path or os.environ.get("AILOGGER_SOCKET", "/tmp/ailogger.sock")
 
     def _build_event(
         self,
