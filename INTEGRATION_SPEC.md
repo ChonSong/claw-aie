@@ -40,9 +40,9 @@ The agent CLI still runs — but claw-aie wraps it, intercepting tool calls and 
 │  │  │  1. Load profile (agent CLI + model + env)         │ │ │
 │  │  │  2. Register tools + hooks                         │ │ │
 │  │  │  3. Launch agent CLI as subprocess                 │ │ │
-│  │  │  4. Intercept stdout/stderr → parse tool calls     │ │ │
-│  │  │  5. Emit AIE events per tool call                  │ │ │
-│  │  │  6. On completion → emit task completion event     │ │ │
+│  │  │  4. Intercept stdout/stderr → parse tool calls    │ │ │
+│  │  │  5. Emit AIE events per tool call                 │ │ │
+│  │  │  6. On completion → emit task completion event   │ │ │
 │  │  └────────────────────────────────────────────────────┘ │ │
 │  └─────────────────────────────────────────────────────────┘ │
 │                          │                                    │
@@ -50,10 +50,10 @@ The agent CLI still runs — but claw-aie wraps it, intercepting tool calls and 
 │                    ailogger.sock                              │
 │                          │                                    │
 │  ┌───────────────────────▼─────────────────────────────────┐ │
-│  │ AIE pipeline (unchanged)                                │ │
-│  │ drift_scan → drift_check → oracle_batch → alert         │ │
-│  └─────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
+│  │ AIE pipeline (unchanged)                                   │ │
+│  │ drift_scan → drift_check → oracle_batch → alert            │ │
+│  └───────────────────────────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ## 4. Changes Required
@@ -268,6 +268,7 @@ class BrowserTools:
 | **D** | Spawn hooks (DriftCheck, OracleEval) | ✅ Done (2026-04-16) |
 | **E** | Browser review agent profile + end-to-end test | ✅ Done (2026-04-16) |
 | **F** | ClawTeam profile schema extension (PR upstream) | ✅ Done (2026-04-16) |
+| **G** | AIE lobster heartbeat cron (drift + oracle + Discord alert) | ✅ Done (2026-04-17) |
 
 ## 7. Dependencies
 
@@ -298,19 +299,16 @@ claw-aie/
 
 ---
 
-*Draft v1. Sean to review before implementation begins.*
+## Completed (2026-04-17)
 
----
-
-## Completed (2026-04-16)
-
-All phases A-F are complete. Status updated 2026-04-17:
+All phases A-G are complete as of 2026-04-17:
 
 - ✅ Phase A — `browser_tools.py` exists, 8 tools implemented, 9 e2e tests passing
 - ✅ Phase B — `harness.py` exists, wraps agent CLI subprocess, intercepts tool calls
 - ✅ Phase C — `spawn_backend.py` exists, `AIESpawnBackend` implements ClawTeam `SpawnBackend` ABC
 - ✅ Phase D — `spawn_hooks.py` exists, `DriftCheckHook`, `OracleEvalHook`, `SessionLogHook`
-- ✅ Phase E — `test_e2e_browser_review.py` passes with 9 tests, 113 tests total
+- ✅ Phase E — `test_e2e_browser_review.py` passes with 9 tests, 91 tests total
 - ✅ Phase F — ClawTeam profile schema extended via `aie_integration/config.py`
+- ✅ Phase G — AIE lobster heartbeat cron scheduled every 6h (Sydney): drift_scan → check_drift → oracle_batch → check_oracle → alert_and_halt → observability_summary → health_check. Alerts via `openclaw message` to `#evaluator-alerts`
 
-**113 tests passing** as of 2026-04-16 push to `github.com/ChonSong/claw-aie`
+**91 tests passing** as of 2026-04-17 push to `github.com/ChonSong/claw-aie`
